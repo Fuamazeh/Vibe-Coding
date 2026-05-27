@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buea Market Watch</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:        #059669;
+      --green-light:  #d1fae5;
+      --green-border: #6ee7b7;
+      --red:          #b91c1c;
+      --red-light:    #fee2e2;
+      --red-border:   #fca5a5;
+      --bg:           #f1f5f9;
+      --surface:      #ffffff;
+      --border:       #e2e8f0;
+      --text:         #1e293b;
+      --muted:        #64748b;
+      --radius:       12px;
+      --shadow:       0 2px 12px rgba(0,0,0,.08);
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    header .logo-icon {
+      width: 38px; height: 38px;
+      background: var(--green);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 1.2rem;
+    }
+    header .logo-text { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+    header .tagline   { font-size: 0.8rem; color: var(--muted); margin-top: 1px; }
+    header .badge {
+      margin-left: auto;
+      background: var(--green-light);
+      color: var(--green);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 99px;
+      border: 1px solid var(--green-border);
+    }
+
+    /* ── Layout ─────────────────────────────────────── */
+    .page { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media(max-width:760px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── Card ───────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+    .card-title {
+      font-size: 1rem; font-weight: 700;
+      margin-bottom: 18px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .icon { font-size: 1.1rem; }
+
+    /* ── Form ───────────────────────────────────────── */
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+    input, select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.92rem;
+      color: var(--text);
+      background: var(--surface);
+      transition: border-color .15s;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: var(--green); }
+    input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+
+    #custom-neighborhood-wrap { display: none; margin-top: 8px; }
+    #custom-neighborhood-wrap input { border-color: #fbbf24; }
+    #custom-neighborhood-wrap input:focus { border-color: #d97706; }
+
+    /* Image upload */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .upload-zone:hover { border-color: var(--green); background: #f0fdf4; }
+    .upload-zone .icon { font-size: 2rem; display: block; margin-bottom: 6px; }
+    .upload-zone p { font-size: 0.82rem; color: var(--muted); }
+    #file-input { display: none; }
+
+    /* Submit button */
+    .btn {
+      width: 100%;
+      padding: 11px;
+      border: none;
+      border-radius: 9px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background: var(--green); color: #fff; }
+    .btn-primary:hover { opacity: .88; }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-secondary { background: var(--border); color: var(--text); margin-top: 8px; }
+    .btn-secondary:hover { opacity: .8; }
+
+    /* ── Result card ────────────────────────────────── */
+    #result-section { display: none; }
+    .result-banner {
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      margin-bottom: 0;
+      border: 2px solid;
+      animation: fadeIn .3s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
+
+    .result-banner.green {
+      background: var(--green-light);
+      border-color: var(--green-border);
+      color: var(--green);
+    }
+    .result-banner.red {
+      background: var(--red-light);
+      border-color: var(--red-border);
+      color: var(--red);
+    }
+    .result-banner .verdict {
+      font-size: 1.35rem; font-weight: 800; letter-spacing: -.3px;
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    }
+    .result-stats { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+    .result-stat { flex: 1; min-width: 100px; }
+    .result-stat .label { font-size: 0.73rem; font-weight: 600; opacity: .7; text-transform: uppercase; letter-spacing: .5px; }
+    .result-stat .value { font-size: 1.1rem; font-weight: 700; margin-top: 2px; }
+
+    .neighborhood-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      margin-top: 12px;
+      font-size: 0.78rem; font-weight: 600;
+      background: rgba(255,255,255,.6);
+      border-radius: 99px;
+      padding: 3px 10px;
+    }
+    .neighborhood-tag .pending {
+      background: #fef3c7; color: #92400e;
+      border: 1px solid #fcd34d;
+      border-radius: 99px; padding: 1px 7px; font-size: 0.7rem;
+    }
+
+    /* ── Heatmap table ──────────────────────────────── */
+    .section-head {
+      display: flex; align-items: center; gap: 10px;
+      margin: 30px 0 16px;
+    }
+    .section-head h2 { font-size: 1.05rem; font-weight: 700; }
+    .section-head .refresh-btn {
+      margin-left: auto;
+      background: none; border: 1.5px solid var(--border);
+      border-radius: 8px; padding: 5px 12px;
+      font-size: 0.8rem; font-weight: 600; color: var(--muted);
+      cursor: pointer; transition: border-color .15s, color .15s;
+    }
+    .section-head .refresh-btn:hover { border-color: var(--green); color: var(--green); }
+
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    thead th {
+      background: var(--bg); text-align: left;
+      padding: 9px 12px; font-size: 0.75rem; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .5px;
+      border-bottom: 1.5px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+    tbody td { padding: 10px 12px; vertical-align: middle; }
+
+    .pill {
+      display: inline-block; padding: 2px 9px; border-radius: 99px;
+      font-size: 0.75rem; font-weight: 700;
+    }
+    .pill-red   { background: var(--red-light);   color: var(--red);   border: 1px solid var(--red-border); }
+    .pill-green { background: var(--green-light); color: var(--green); border: 1px solid var(--green-border); }
+    .pill-warn  { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+
+    /* ── Map ────────────────────────────────────────── */
+    #map { height: 340px; border-radius: var(--radius); border: 1px solid var(--border); }
+
+    /* ── Loading spinner ────────────────────────────── */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2.5px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ──────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #1e293b; color: #fff;
+      padding: 10px 20px; border-radius: 99px;
+      font-size: 0.85rem; font-weight: 500;
+      opacity: 0; transition: opacity .3s;
+      pointer-events: none; z-index: 999;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ── Empty state ────────────────────────────────── */
+    .empty { text-align: center; padding: 32px 0; color: var(--muted); font-size: 0.88rem; }
+    .empty .icon { font-size: 2rem; display: block; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<!-- ───────────── Header ───────────── -->
+<header>
+  <div class="logo-icon">🌍</div>
+  <div>
+    <div class="logo-text">Buea Market Watch</div>
+    <div class="tagline">Crowdsourced price transparency for Buea students</div>
+  </div>
+  <span class="badge">🟢 Live</span>
+</header>
+
+<div class="page">
+
+  <!-- ───────────── Two-column: Form + Result ───────────── -->
+  <div class="two-col">
+
+    <!-- Left: Submission Form -->
+    <div>
+      <div class="card">
+        <div class="card-title"><span class="icon">📋</span> Submit a Price</div>
+
+        <!-- Image upload -->
+        <div class="form-group">
+          <label>📸 Upload Receipt / Market List (optional)</label>
+          <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+            <span class="icon" id="upload-icon">📷</span>
+            <p id="upload-label">Tap to upload — CNN will pre-fill the form</p>
+          </div>
+          <input type="file" id="file-input" accept="image/*" onchange="handleImageUpload(event)" />
+        </div>
+
+        <form id="submission-form" onsubmit="handleSubmit(event)">
+          <div class="form-group">
+            <label>🛒 Commodity</label>
+            <select id="commodity-id" required>
+              <option value="" disabled selected>Loading…</option>
+            </select>
+          </div>
+
+          <div class="two-col" style="gap:12px;">
+            <div class="form-group" style="margin-bottom:0">
+              <label>📦 Quantity</label>
+              <input type="number" id="quantity" min="1" value="1" required placeholder="e.g. 1" />
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>💰 Unit Price (FCFA)</label>
+              <input type="number" id="unit-price" min="1" required placeholder="e.g. 100" />
+            </div>
+          </div>
+          <br>
+
+          <div class="form-group">
+            <label>📍 Neighborhood</label>
+            <select id="neighborhood-select" required onchange="handleNeighborhoodChange()">
+              <option value="" disabled selected>Loading…</option>
+            </select>
+            <div id="custom-neighborhood-wrap">
+              <input type="text" id="custom-neighborhood" placeholder="Enter neighborhood name…" maxlength="100" />
+            </div>
+          </div>
+
+          <button class="btn btn-primary" type="submit" id="submit-btn">
+            Check Price →
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Right: Result -->
+    <div>
+      <!-- Placeholder while no result -->
+      <div class="card" id="placeholder-card">
+        <div class="card-title"><span class="icon">💡</span> How it works</div>
+        <p style="font-size:.87rem; color:var(--muted); line-height:1.7">
+          Submit what you paid at a local vendor.
+          The system compares your price against the official
+          <strong>National Institute of Statistics (INS)</strong> wholesale benchmark
+          and applies a <strong>+10% fair-margin</strong> to compute the
+          <em>Fair Trade Threshold</em>.
+        </p>
+        <br>
+        <div style="display:grid; gap:10px;">
+          <div style="display:flex; align-items:center; gap:10px; font-size:.85rem;">
+            <span style="background:var(--green-light); color:var(--green); border-radius:8px; padding:4px 10px; font-weight:700;">GREEN</span>
+            Price is at or below the fair threshold — good deal.
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; font-size:.85rem;">
+            <span style="background:var(--red-light); color:var(--red); border-radius:8px; padding:4px 10px; font-weight:700;">RED</span>
+            Price exceeds the threshold — vendor is price-gouging.
+          </div>
+        </div>
+        <br>
+        <p style="font-size:.78rem; color:var(--muted)">
+          Formula: <code style="background:var(--bg); padding:2px 6px; border-radius:4px;">Threshold = (INS bulk price ÷ units per bulk) × 1.10</code>
+        </p>
+      </div>
+
+      <!-- Result banner (shown after submission) -->
+      <div id="result-section">
+        <div id="result-banner" class="result-banner">
+          <div class="verdict" id="verdict-text"></div>
+          <div class="result-stats">
+            <div class="result-stat">
+              <div class="label">Your Price</div>
+              <div class="value" id="res-submitted"></div>
+            </div>
+            <div class="result-stat">
+              <div class="label">Fair Threshold</div>
+              <div class="value" id="res-threshold"></div>
+            </div>
+            <div class="result-stat">
+              <div class="label">Markup</div>
+              <div class="value" id="res-markup"></div>
+            </div>
+          </div>
+          <div id="res-neighborhood" class="neighborhood-tag"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── Heatmap Section ───────────── -->
+  <div class="section-head">
+    <span style="font-size:1.2rem">🌡️</span>
+    <h2>24-Hour Price Heatmap</h2>
+    <button class="refresh-btn" onclick="loadHeatmap()">↻ Refresh</button>
+  </div>
+
+  <div class="two-col">
+    <!-- Stats table -->
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div id="heatmap-table-wrap">
+        <div class="empty"><span class="icon">⏳</span>Loading heatmap data…</div>
+      </div>
+    </div>
+
+    <!-- Leaflet map -->
+    <div class="card" style="padding:12px;">
+      <div class="card-title" style="margin-bottom:12px;"><span class="icon">🗺️</span> Buea Neighborhoods</div>
+      <div id="map"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<script>
+/* =====================================================================
+   CONFIG
+   ===================================================================== */
+const API = '';   // same-origin
+
+/* =====================================================================
+   INIT
+   ===================================================================== */
+let heatmapData   = [];
+let mapMarkers    = {};
+let leafletMap    = null;
+let leafletInited = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  loadCommodities();
+  loadNeighborhoods();
+  loadHeatmap();
+});
+
+/* =====================================================================
+   MAP
+   ===================================================================== */
+function initMap() {
+  // Centre on Buea, Cameroon
+  leafletMap = L.map('map').setView([4.155, 9.290], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18,
+  }).addTo(leafletMap);
+  leafletInited = true;
+}
+
+// Approximate coords for the seeded neighborhoods
+const HOOD_COORDS = {
+  'Molyko':      [4.150, 9.285],
+  'Ndongo':      [4.160, 9.295],
+  'Great Soppo': [4.145, 9.310],
+};
+
+function updateMapMarkers(entries) {
+  if (!leafletInited) return;
+
+  // Clear old markers
+  Object.values(mapMarkers).forEach(m => m.remove());
+  mapMarkers = {};
+
+  // Group entries by neighborhood
+  const byHood = {};
+  entries.forEach(e => {
+    if (!byHood[e.neighborhood_name]) byHood[e.neighborhood_name] = [];
+    byHood[e.neighborhood_name].push(e);
+  });
+
+  Object.entries(byHood).forEach(([hood, items]) => {
+    const coords = HOOD_COORDS[hood];
+    if (!coords) return;
+
+    // Determine worst markup across commodities
+    const maxMarkup = Math.max(...items.map(i => i.markup_pct));
+    const isHot = maxMarkup > 0;
+    const color = isHot ? '#b91c1c' : '#059669';
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        background:${color}; color:#fff;
+        border-radius:50%; width:38px; height:38px;
+        display:flex; align-items:center; justify-content:center;
+        font-size:.7rem; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.3);
+        border:2px solid #fff;
+      ">${maxMarkup > 0 ? '+' : ''}${maxMarkup.toFixed(0)}%</div>`,
+      iconSize: [38, 38],
+      iconAnchor: [19, 19],
+    });
+
+    const popup = items.map(i =>
+      `<b>${i.commodity_name}</b>: ${i.mean_price_fcfa.toFixed(0)} FCFA
+       (threshold ${i.threshold_fcfa} FCFA, ${i.markup_pct > 0 ? '▲' : '▼'}${Math.abs(i.markup_pct).toFixed(1)}%)`
+    ).join('<br>');
+
+    const marker = L.marker(coords, { icon })
+      .addTo(leafletMap)
+      .bindPopup(`<b>${hood}</b><br>${popup}`);
+
+    mapMarkers[hood] = marker;
+  });
+}
+
+/* =====================================================================
+   COMMODITY & NEIGHBORHOOD LISTS
+   ===================================================================== */
+async function loadCommodities() {
+  try {
+    const res = await fetch(`${API}/api/commodities`);
+    if (!res.ok) throw new Error('Failed to load commodities');
+    const data = await res.json();
+    const sel = document.getElementById('commodity-id');
+    sel.innerHTML = '<option value="" disabled selected>Select a commodity…</option>';
+    data.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.name;
+      sel.appendChild(opt);
+    });
+  } catch (err) {
+    console.error(err);
+    // Fallback: seed defaults
+    const sel = document.getElementById('commodity-id');
+    sel.innerHTML = `
+      <option value="" disabled selected>Select a commodity…</option>
+      <option value="1">Garri</option>
+      <option value="2">Spaghetti</option>
+    `;
+  }
+}
+
+async function loadNeighborhoods() {
+  try {
+    const res = await fetch(`${API}/api/neighborhoods`);
+    if (!res.ok) throw new Error('Failed to load neighborhoods');
+    const data = await res.json();
+    populateNeighborhoodSelect(data);
+  } catch (err) {
+    console.error(err);
+    // Fallback: seed defaults
+    populateNeighborhoodSelect([
+      { id: 1, name: 'Molyko' },
+      { id: 2, name: 'Ndongo' },
+      { id: 3, name: 'Great Soppo' },
+    ]);
+  }
+}
+
+function populateNeighborhoodSelect(neighborhoods) {
+  const sel = document.getElementById('neighborhood-select');
+  sel.innerHTML = '<option value="" disabled selected>Select a neighborhood…</option>';
+  neighborhoods.forEach(n => {
+    const opt = document.createElement('option');
+    opt.value = n.id;
+    opt.textContent = n.name;
+    sel.appendChild(opt);
+  });
+  // Always add "Other" option
+  const other = document.createElement('option');
+  other.value = 'other';
+  other.textContent = '+ Other (not listed)';
+  sel.appendChild(other);
+}
+
+function handleNeighborhoodChange() {
+  const sel = document.getElementById('neighborhood-select');
+  const wrap = document.getElementById('custom-neighborhood-wrap');
+  const inp = document.getElementById('custom-neighborhood');
+  if (sel.value === 'other') {
+    wrap.style.display = 'block';
+    inp.required = true;
+    inp.focus();
+  } else {
+    wrap.style.display = 'none';
+    inp.required = false;
+  }
+}
+
+/* =====================================================================
+   IMAGE UPLOAD
+   ===================================================================== */
+async function handleImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  document.getElementById('upload-icon').textContent  = '⏳';
+  document.getElementById('upload-label').textContent = `Parsing "${file.name}"…`;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res  = await fetch(`${API}/api/submissions/upload-image`, { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast('⚠️ ' + (data.detail || 'Could not parse image — please fill manually.'));
+      resetUploadZone();
+      return;
+    }
+
+    // Pre-populate form fields
+    if (data.unit_price)  document.getElementById('unit-price').value = data.unit_price;
+    if (data.quantity)    document.getElementById('quantity').value   = data.quantity;
+
+    document.getElementById('upload-icon').textContent  = '✅';
+    document.getElementById('upload-label').textContent = `Parsed: ${file.name}`;
+    showToast('✅ Form pre-filled from image!');
+  } catch (err) {
+    showToast('❌ Upload failed — please fill manually.');
+    resetUploadZone();
+  }
+}
+
+function resetUploadZone() {
+  document.getElementById('upload-icon').textContent  = '📷';
+  document.getElementById('upload-label').textContent = 'Tap to upload — CNN will pre-fill the form';
+}
+
+/* =====================================================================
+   SUBMISSION
+   ===================================================================== */
+async function handleSubmit(event) {
+  event.preventDefault();
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Checking…';
+
+  const commodityId = parseInt(document.getElementById('commodity-id').value);
+  const quantity    = parseInt(document.getElementById('quantity').value);
+  const unitPrice   = parseInt(document.getElementById('unit-price').value);
+  const hoodSel     = document.getElementById('neighborhood-select');
+  const customName  = document.getElementById('custom-neighborhood').value.trim();
+
+  const payload = { commodity_id: commodityId, quantity, submitted_unit_price_fcfa: unitPrice };
+
+  if (hoodSel.value === 'other') {
+    payload.custom_neighborhood_name = customName;
+  } else {
+    payload.neighborhood_id = parseInt(hoodSel.value);
+  }
+
+  try {
+    const res  = await fetch(`${API}/api/submissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast('❌ ' + (data.detail || 'Submission failed.'));
+      return;
+    }
+
+    showResult(data);
+    loadHeatmap(); // refresh heatmap after new submission
+  } catch (err) {
+    showToast('❌ Network error. Please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Check Price →';
+  }
+}
+
+/* =====================================================================
+   RESULT DISPLAY
+   ===================================================================== */
+function showResult(data) {
+  const isRed = data.ui_color_code === 'RED';
+
+  // Hide placeholder, show result
+  document.getElementById('placeholder-card').style.display = 'none';
+  const section = document.getElementById('result-section');
+  section.style.display = 'block';
+
+  const banner = document.getElementById('result-banner');
+  banner.className = 'result-banner ' + (isRed ? 'red' : 'green');
+
+  document.getElementById('verdict-text').innerHTML = isRed
+    ? '🔴 PRICE GOUGING ALERT'
+    : '🟢 FAIR PRICE VENDOR';
+
+  document.getElementById('res-submitted').textContent  = `${data.submitted_price.toLocaleString()} FCFA`;
+  document.getElementById('res-threshold').textContent  = `${data.calculated_threshold.toLocaleString()} FCFA`;
+
+  const markup = ((data.submitted_price - data.calculated_threshold) / data.calculated_threshold * 100).toFixed(1);
+  const markupSign = markup > 0 ? '+' : '';
+  document.getElementById('res-markup').textContent = `${markupSign}${markup}%`;
+
+  // Neighborhood tag
+  const tag = document.getElementById('res-neighborhood');
+  tag.innerHTML = `📍 ${data.neighborhood_name}`;
+  if (!data.neighborhood_is_approved) {
+    tag.innerHTML += ` <span class="pending">⏳ Pending approval</span>`;
+  }
+
+  // Scroll result into view on mobile
+  section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* =====================================================================
+   HEATMAP
+   ===================================================================== */
+async function loadHeatmap() {
+  try {
+    const res  = await fetch(`${API}/api/analytics/heatmap`);
+    const data = await res.json();
+    heatmapData = data.entries || [];
+    renderHeatmapTable(heatmapData);
+    updateMapMarkers(heatmapData);
+  } catch (err) {
+    document.getElementById('heatmap-table-wrap').innerHTML =
+      '<div class="empty"><span class="icon">⚠️</span>Could not load heatmap data.</div>';
+  }
+}
+
+function renderHeatmapTable(entries) {
+  const wrap = document.getElementById('heatmap-table-wrap');
+
+  if (!entries.length) {
+    wrap.innerHTML = '<div class="empty"><span class="icon">📭</span>No submissions in the last 24 hours.</div>';
+    return;
+  }
+
+  const rows = entries.map(e => {
+    const markupPct = e.markup_pct.toFixed(1);
+    const markupSign = e.markup_pct > 0 ? '+' : '';
+    const pillClass = e.markup_pct > 10 ? 'pill-red' : e.markup_pct > 0 ? 'pill-warn' : 'pill-green';
+    return `
+      <tr>
+        <td><strong>${e.neighborhood_name}</strong></td>
+        <td>${e.commodity_name}</td>
+        <td>${e.mean_price_fcfa.toFixed(0)} FCFA</td>
+        <td>${e.threshold_fcfa} FCFA</td>
+        <td><span class="pill ${pillClass}">${markupSign}${markupPct}%</span></td>
+        <td style="color:var(--muted); font-size:.8rem">${e.submission_count} ${e.submission_count === 1 ? 'report' : 'reports'}</td>
+      </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Neighborhood</th>
+          <th>Commodity</th>
+          <th>Avg Price</th>
+          <th>Threshold</th>
+          <th>Markup</th>
+          <th>Reports</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/* =====================================================================
+   TOAST
+   ===================================================================== */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+</script>
+</body>
+</html>
