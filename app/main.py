@@ -13,7 +13,6 @@ Run with:
     uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 """
 
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
@@ -41,18 +40,22 @@ _STATIC_DIR = Path(__file__).parent / "static"
 
 
 # ---------------------------------------------------------------------------
-# Lifespan: create tables on startup
+# Global Database Initialization & Explicit Seeding
 # ---------------------------------------------------------------------------
+# Force table creation synchronously on module import
+Base.metadata.create_all(bind=engine)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
-    try:
-        seed_initial_data(db)
-    finally:
-        db.close()
-    yield
+# Open a synchronous initialization session to seed lookup values permanently
+db = SessionLocal()
+try:
+    seed_initial_data(db)
+    db.commit()  # <-- CRITICAL: Forces SQLAlchemy to commit the seeded rows to Postgres
+    print("Database schema built and lookup data committed successfully.")
+except Exception as e:
+    db.rollback()
+    print(f"Database initialization encountered an exception: {e}")
+finally:
+    db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +69,6 @@ app = FastAPI(
         "in Buea, Cameroon."
     ),
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------
