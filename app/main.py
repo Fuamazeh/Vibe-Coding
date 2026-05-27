@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from .aggregation_service import aggregate_daily_heatmap_data
-from .database import Base, engine, get_db
+from .database import Base, SessionLocal, engine, get_db
 from .models import Commodity, InsWholesalePrice, Neighborhood, PriceSubmission
 from .price_engine import calculate_fair_threshold, evaluate_submission, get_ui_color_code
 from .schemas import (
@@ -34,6 +34,7 @@ from .schemas import (
     VisionParseResponse,
 )
 from .vision_service import VisionProcessingError, parse_market_image
+from .seed import seed_initial_data
 from . import models  # noqa: F401 — ensures all ORM models are registered before create_all
 
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -46,6 +47,11 @@ _STATIC_DIR = Path(__file__).parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_initial_data(db)
+    finally:
+        db.close()
     yield
 
 
