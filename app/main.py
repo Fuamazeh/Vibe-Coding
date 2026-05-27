@@ -5,7 +5,6 @@ FastAPI application entry-point for Buea Market Watch.
 
 Routes
 ------
-GET   /                              – JSON health check (tables verified on boot)
 POST  /api/submissions               – Student price submission + bargaining feedback
 GET   /api/analytics/heatmap         – 24-hour aggregated neighbourhood price heatmap
 POST  /api/submissions/upload-image  – CNN receipt / market-list image parser
@@ -14,22 +13,17 @@ Run with:
     uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 """
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
+from .aggregation_service import aggregate_daily_heatmap_data
 from .database import Base, engine, get_db
-
-# ---------------------------------------------------------------------------
-# Explicitly import models so that every ORM class (Commodity,
-# InsWholesalePrice, Neighborhood, PriceSubmission) is registered onto
-# Base.metadata *before* create_all is called below.
-# ---------------------------------------------------------------------------
-from . import models  # noqa: F401
-
 from .models import Commodity, InsWholesalePrice, Neighborhood, PriceSubmission
 from .price_engine import calculate_fair_threshold, evaluate_submission, get_ui_color_code
 from .schemas import (
@@ -39,18 +33,21 @@ from .schemas import (
     SubmissionResponse,
     VisionParseResponse,
 )
-from .aggregation_service import aggregate_daily_heatmap_data
 from .vision_service import VisionProcessingError, parse_market_image
+from . import models  # noqa: F401 — ensures all ORM models are registered before create_all
 
 _STATIC_DIR = Path(__file__).parent / "static"
 
+
 # ---------------------------------------------------------------------------
-# Table creation — runs at module load time so Render (and any other host)
-# creates missing tables the instant the container boots.
-# create_all is idempotent: existing tables are never dropped or modified.
+# Lifespan: create tables on startup
 # ---------------------------------------------------------------------------
 
-Base.metadata.create_all(bind=engine)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
 
 # ---------------------------------------------------------------------------
 # Application instance
@@ -63,6 +60,7 @@ app = FastAPI(
         "in Buea, Cameroon."
     ),
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------
@@ -82,16 +80,12 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 
 # ---------------------------------------------------------------------------
-# GET / — JSON health check
+# GET / — serve the single-page frontend
 # ---------------------------------------------------------------------------
 
-@app.get("/", tags=["Health"])
-def health_check() -> dict:
-    """
-    Liveness probe.  Returns 200 once the container is up and all database
-    tables have been verified (or created) by the startup create_all call.
-    """
-    return {"status": "healthy", "database": "connected and tables verified"}
+@app.get("/", include_in_schema=False)
+def serve_frontend() -> FileResponse:
+    return FileResponse(str(_STATIC_DIR / "index.html"))
 
 
 # ---------------------------------------------------------------------------
